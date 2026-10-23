@@ -37,11 +37,18 @@ jobs:
 
             const say = body => github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
 
+            // 0. Repo admins (the maintainers) are always let through
+            let admin = false;
+            try {
+              const p = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: author });
+              admin = p.data.permission === "admin";
+            } catch (e) {}
+
             // 1. Is the author in the org?
             // Private memberships are hidden from some of these views, so ask several ways.
             const isMemberAssoc = a => a === "MEMBER" || a === "OWNER";
             const signals = { payload: pr.author_association };
-            let inOrg = isMemberAssoc(pr.author_association);
+            let inOrg = admin || isMemberAssoc(pr.author_association);
             if (!inOrg) {
               try {
                 const fresh = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
@@ -73,11 +80,6 @@ jobs:
               return core.setFailed(`${author} is not in ${ORG}`);
             }
 
-            let admin = false;
-            try {
-              const p = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: author });
-              admin = p.data.permission === "admin";
-            } catch (e) {}
 
             // 2. What does it touch?
             const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number });
