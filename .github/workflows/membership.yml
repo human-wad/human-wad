@@ -33,13 +33,32 @@ jobs:
             const say = body => github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
 
             // 1. Is the author in the org?
-            let inOrg = pr.author_association === "MEMBER" || pr.author_association === "OWNER";
+            // Private memberships are hidden from some of these views, so ask several ways.
+            const isMemberAssoc = a => a === "MEMBER" || a === "OWNER";
+            const signals = { payload: pr.author_association };
+            let inOrg = isMemberAssoc(pr.author_association);
+            if (!inOrg) {
+              try {
+                const fresh = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+                signals.fresh = fresh.data.author_association;
+                inOrg = isMemberAssoc(fresh.data.author_association);
+              } catch (e) { signals.fresh = "error " + e.status; }
+            }
+            if (!inOrg) {
+              try {
+                const r = await github.request("GET /orgs/{org}/members/{username}", { org: ORG, username: author, request: { redirect: "manual" } });
+                signals.members = r.status;
+                inOrg = r.status === 204;
+              } catch (e) { signals.members = "error " + e.status; }
+            }
             if (!inOrg) {
               try {
                 await github.rest.orgs.checkPublicMembershipForUser({ org: ORG, username: author });
+                signals.public = 204;
                 inOrg = true;
-              } catch (e) { /* 404: not a public member */ }
+              } catch (e) { signals.public = e.status; }
             }
+            core.info("membership signals: " + JSON.stringify(signals));
             if (!inOrg) {
               await say(`human.wad is invite-only, and @${author} isn't in the [${ORG}](https://github.com/${ORG}) org, so this is closed.\n\nIf someone has asked you in, accept the org invite first, then open the pull request again. (If you're in the org but hidden, make your membership public on the org's People page.)`);
               await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: "closed" });
