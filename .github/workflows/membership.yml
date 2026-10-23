@@ -1,5 +1,8 @@
 # Every pull request to the ring passes through here.
 #  - Authors outside the human-wad org: the PR is closed with a note.
+#    The workflow token can only see *public* org membership. Members either
+#    make their membership public, or an admin stores a token that can read
+#    private membership as the ORG_MEMBERS_TOKEN secret.
 #  - Org members: may only touch members.json, and only their own entry
 #    (the one whose "gh" is their GitHub login). Repo admins skip this rule.
 #  - Every entry is checked for shape: name, gh, https url, no duplicates.
@@ -23,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
+        env:
+          ORG_TOKEN: ${{ secrets.ORG_MEMBERS_TOKEN }}
         with:
           script: |
             const ORG = "human-wad";
@@ -44,12 +49,15 @@ jobs:
                 inOrg = isMemberAssoc(fresh.data.author_association);
               } catch (e) { signals.fresh = "error " + e.status; }
             }
-            if (!inOrg) {
+            // The workflow's own token can't see private members. If an org token is
+            // stored as ORG_MEMBERS_TOKEN (Organization > Members: read), use it.
+            if (!inOrg && process.env.ORG_TOKEN) {
               try {
-                const r = await github.request("GET /orgs/{org}/members/{username}", { org: ORG, username: author, request: { redirect: "manual" } });
-                signals.members = r.status;
+                const o = getOctokit(process.env.ORG_TOKEN);
+                const r = await o.request("GET /orgs/{org}/members/{username}", { org: ORG, username: author });
+                signals.token = r.status;
                 inOrg = r.status === 204;
-              } catch (e) { signals.members = "error " + e.status; }
+              } catch (e) { signals.token = "error " + e.status; }
             }
             if (!inOrg) {
               try {
@@ -60,7 +68,7 @@ jobs:
             }
             core.info("membership signals: " + JSON.stringify(signals));
             if (!inOrg) {
-              await say(`human.wad is invite-only, and @${author} isn't in the [${ORG}](https://github.com/${ORG}) org, so this is closed.\n\nIf someone has asked you in, accept the org invite first, then open the pull request again. (If you're in the org but hidden, make your membership public on the org's People page.)`);
+              await say(`human.wad is invite-only, and @${author} isn't in the [${ORG}](https://github.com/${ORG}) org, so this is closed.\n\nIf someone has asked you in, accept the org invite first, then open the pull request again. (Already in the org? Your membership is probably private: make it public at https://github.com/orgs/${ORG}/people, then reopen this.)`);
               await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: "closed" });
               return core.setFailed(`${author} is not in ${ORG}`);
             }

@@ -7,7 +7,9 @@ shape comes from your name. Fully static (GitHub Pages).
 ## Getting in
 
 human.wad is invite-only: you need to be in the [human-wad](https://github.com/human-wad) org.
-Once you are, open a pull request that adds one entry to [`members.json`](members.json):
+Once you are, make your membership public on the org's
+[People page](https://github.com/orgs/human-wad/people) (the check can't see private members),
+then open a pull request that adds one entry to [`members.json`](members.json):
 
 ```json
 { "name": "your-name", "gh": "your-github-username", "url": "https://your-site.example" }
