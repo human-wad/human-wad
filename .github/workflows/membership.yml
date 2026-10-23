@@ -1,0 +1,119 @@
+# Every pull request to the ring passes through here.
+#  - Authors outside the human-wad org: the PR is closed with a note.
+#  - Org members: may only touch members.json, and only their own entry
+#    (the one whose "gh" is their GitHub login). Repo admins skip this rule.
+#  - Every entry is checked for shape: name, gh, https url, no duplicates.
+#
+# pull_request_target runs this file from the base branch with a write token.
+# It never checks out or runs code from the PR; it only reads members.json
+# through the API and parses it as JSON.
+name: membership
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const ORG = "human-wad";
+            const pr = context.payload.pull_request;
+            const author = pr.user.login;
+            const { owner, repo } = context.repo;
+
+            const say = body => github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+
+            // 1. Is the author in the org?
+            let inOrg = pr.author_association === "MEMBER" || pr.author_association === "OWNER";
+            if (!inOrg) {
+              try {
+                await github.rest.orgs.checkPublicMembershipForUser({ org: ORG, username: author });
+                inOrg = true;
+              } catch (e) { /* 404: not a public member */ }
+            }
+            if (!inOrg) {
+              await say(`human.wad is invite-only, and @${author} isn't in the [${ORG}](https://github.com/${ORG}) org, so this is closed.\n\nIf someone has asked you in, accept the org invite first, then open the pull request again. (If you're in the org but hidden, make your membership public on the org's People page.)`);
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: "closed" });
+              return core.setFailed(`${author} is not in ${ORG}`);
+            }
+
+            let admin = false;
+            try {
+              const p = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: author });
+              admin = p.data.permission === "admin";
+            } catch (e) {}
+
+            // 2. What does it touch?
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number });
+            const names = files.map(f => f.filename);
+            if (!admin && names.some(n => n !== "members.json")) {
+              await say(`Members can only change \`members.json\`. This pull request also touches: ${names.filter(n => n !== "members.json").map(n => "`" + n + "`").join(", ")}.`);
+              return core.setFailed("touches files other than members.json");
+            }
+            if (!names.includes("members.json")) return core.info("members.json untouched");
+
+            // 3. Read both versions as data
+            const load = async (o, r, ref) => {
+              const res = await github.rest.repos.getContent({ owner: o, repo: r, path: "members.json", ref });
+              return JSON.parse(Buffer.from(res.data.content, "base64").toString("utf8"));
+            };
+            const before = await load(owner, repo, pr.base.sha);
+            let after;
+            try {
+              after = await load(pr.head.repo.owner.login, pr.head.repo.name, pr.head.sha);
+            } catch (e) {
+              await say("`members.json` isn't valid JSON after this change: " + e.message);
+              return core.setFailed("invalid JSON");
+            }
+
+            // 4. Shape of every entry
+            const problems = [];
+            if (!Array.isArray(after)) problems.push("`members.json` must be a list.");
+            else {
+              const seenName = new Set(), seenGh = new Set();
+              after.forEach((m, i) => {
+                const at = `entry ${i}`;
+                if (!m || typeof m !== "object") return problems.push(`${at} isn't an object.`);
+                const extra = Object.keys(m).filter(k => !["name", "gh", "url"].includes(k));
+                if (extra.length) problems.push(`${at} has unknown fields: ${extra.join(", ")}.`);
+                if (typeof m.name !== "string" || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(m.name)) problems.push(`${at}: \`name\` must be lowercase letters, digits or dashes (max 32).`);
+                if (typeof m.gh !== "string" || !/^[A-Za-z0-9-]{1,39}$/.test(m.gh)) problems.push(`${at}: \`gh\` must be a GitHub username.`);
+                let url;
+                try { url = new URL(m.url); } catch (e) {}
+                if (!url || url.protocol !== "https:") problems.push(`${at}: \`url\` must be an https:// address.`);
+                const n = String(m.name).toLowerCase(), g = String(m.gh).toLowerCase();
+                if (seenName.has(n)) problems.push(`the name \`${m.name}\` is taken.`);
+                if (seenGh.has(g)) problems.push(`\`${m.gh}\` already has a room; one each.`);
+                seenName.add(n); seenGh.add(g);
+              });
+            }
+
+            // 5. Members may only add or change their own room
+            if (!admin && Array.isArray(after) && Array.isArray(before)) {
+              const me = author.toLowerCase();
+              const key = m => JSON.stringify(m);
+              const beforeKeys = new Set(before.map(key)), afterKeys = new Set(after.map(key));
+              const removed = before.filter(m => !afterKeys.has(key(m)));
+              const added = after.filter(m => !beforeKeys.has(key(m)));
+              for (const m of [...removed, ...added]) {
+                if (String(m && m.gh).toLowerCase() !== me) {
+                  problems.push(`you can only add or change your own room (\`"gh": "${author}"\`), but this touches \`${m && m.name}\`.`);
+                  break;
+                }
+              }
+            }
+
+            if (problems.length) {
+              await say("A few things to fix in `members.json`:\n\n" + problems.map(p => "- " + p).join("\n"));
+              return core.setFailed(problems.join(" "));
+            }
+            core.info("looks good: waiting for a maintainer to merge");

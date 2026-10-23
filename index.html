@@ -7,9 +7,15 @@
 <link rel="icon" href="badge.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Monsieur+La+Doulaise&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<!--
+  The ring, drawn as a Doom automap. Every member is a room; its shape is
+  seeded from their name, so it is theirs and never changes. Corridors run
+  the loop in members.json order. One corridor leads off the ring to a door:
+  that is the way in.
+-->
 <style>
-/* Same palette as wheresallthedata.fyi (lifted from Harsha's 88x31 button). */
+/* palette lifted from Harsha's 88x31 button, same as wheresallthedata.fyi */
 :root {
   color-scheme: dark;
   --void:   #000000;
@@ -21,162 +27,290 @@
   --sky:    #84d5fe;
   --ink:    #e9e4ff;
   --muted:  #a49bd1;
+  --face-hand:  "Monsieur La Doulaise", "Snell Roundhand", cursive;
   --face-pixel: "Silkscreen", "Courier New", monospace;
   --face-body:  "Atkinson Hyperlegible", system-ui, sans-serif;
   --face-mono:  ui-monospace, "Courier New", monospace;
 }
 html, body { margin: 0; background: var(--void); color: var(--ink); }
-body {
-  font: 17px/1.6 var(--face-body);
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 8vh max(16px, env(safe-area-inset-left, 0px));
-  /* a sparse dithered sky, so the page isn't flat black */
-  background-image:
-    radial-gradient(ellipse at 70% -10%, rgba(59, 39, 153, 0.55), transparent 55%),
-    radial-gradient(1px 1px at 20% 30%, var(--ice), transparent),
-    radial-gradient(1px 1px at 80% 60%, var(--sky), transparent),
-    radial-gradient(1px 1px at 45% 85%, var(--pink), transparent);
-  background-attachment: fixed;
-}
-main { max-width: 720px; margin: 0 auto; }
+body { font: 17px/1.6 var(--face-body); }
 
-header { padding: 14vh 0 6vh; }
-.label {
-  font-family: var(--face-pixel);
-  font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--pink); margin: 0 0 0.6rem;
+/* ---- the automap ---- */
+.map {
+  position: relative;
+  height: min(82svh, 760px);
+  min-height: 420px;
+  overflow: auto;
+  border-bottom: 2px solid var(--deep);
 }
-h1 {
-  font-family: var(--face-pixel); font-weight: 400;
-  font-size: clamp(2.4rem, 10vw, 4.5rem); line-height: 1.05;
-  margin: 0; color: var(--ice);
-  text-shadow: 0 0.06em 0 var(--deep), 0 0 0.6em rgba(167, 57, 232, 0.55);
+.map svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.map h1 {
+  position: absolute; top: 12px; left: max(16px, env(safe-area-inset-left, 0px));
+  margin: 0; pointer-events: none;
+  font: 400 clamp(3rem, 9vw, 5.5rem)/1 var(--face-hand);
+  color: var(--ice);
+  text-shadow: 0 0.04em 0 var(--deep), 0 0 0.35em rgba(0, 0, 0, 0.9);
 }
-header p { color: var(--muted); max-width: 46ch; margin: 1rem 0 0; }
+.stats {
+  position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: 12px;
+  margin: 0; font: 0.7rem/1.4 var(--face-pixel); letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.stats a { color: var(--sky); text-decoration: none; }
+.stats a:hover { color: var(--pink); }
 
+/* svg pieces */
+.wall-out  { fill: none; stroke: var(--indigo); stroke-linejoin: miter; }
+.wall-in   { fill: none; stroke: url(#grid); stroke-linejoin: miter; }
+.room      { fill: url(#grid); stroke: var(--violet); stroke-width: 3; transition: stroke 120ms; }
+.rooms a:hover .room, .rooms a:focus .room, .room.hot { stroke: var(--pink); }
+.rooms a:focus { outline: none; }
+.rooms a:focus-visible .room { stroke-dasharray: 10 6; }
+.label     { fill: var(--ice); font-family: var(--face-pixel); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.host      { fill: var(--muted); font-family: var(--face-mono); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.door      { stroke: var(--pink); stroke-width: 8; }
+.door-tag  { fill: var(--pink); font-family: var(--face-pixel); font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
+.you       { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: square; }
+.corridors { pointer-events: none; }
+
+/* ---- the text underneath ---- */
+main {
+  max-width: 60ch;
+  padding: 2rem max(16px, env(safe-area-inset-right, 0px)) 10vh max(16px, env(safe-area-inset-left, 0px));
+}
 h2 {
-  font-family: var(--face-pixel); font-weight: 400;
-  font-size: 1rem; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--sky); margin: 3.2rem 0 0.9rem;
+  font: 400 clamp(2.4rem, 7vw, 3.4rem)/1.1 var(--face-hand);
+  color: var(--ice); margin: 2.4rem 0 0.6rem;
 }
-
-/* members, laid out like a WAD's lump directory */
-.dir { width: 100%; border-collapse: collapse; font-family: var(--face-mono); font-size: 0.95rem; }
-.dir th {
-  font-family: var(--face-pixel); font-weight: 400; font-size: 0.65rem;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
-  text-align: left; padding: 0 12px 6px 0; border-bottom: 2px dotted var(--indigo);
+main > section:first-child h2 { margin-top: 0.4rem; }
+p { margin: 0 0 1rem; }
+a { color: var(--sky); text-underline-offset: 3px; }
+a:hover { color: var(--pink); }
+a:focus-visible { outline: 2px dashed var(--pink); outline-offset: 3px; }
+code { font-family: var(--face-mono); color: var(--sky); font-size: 0.92em; }
+pre {
+  margin: 0 0 1.2rem; padding: 2px 0 2px 14px; overflow-x: auto;
+  border-left: 2px dotted var(--indigo);
+  font: 0.8rem/1.6 var(--face-mono); color: var(--muted);
 }
-.dir td { padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(59, 39, 153, 0.5); vertical-align: top; }
-.dir td:first-child { color: var(--violet); width: 4ch; }
-.dir td:nth-child(2) { color: var(--ink); }
-.dir a { color: var(--sky); text-underline-offset: 3px; word-break: break-all; }
-.dir a:hover { color: var(--pink); }
-.dir .empty td { color: var(--muted); font-style: italic; }
-
-.walk { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 1.4rem; }
-.walk a {
-  font-family: var(--face-pixel); font-size: 0.8rem; letter-spacing: 0.08em;
-  color: var(--ice); text-decoration: none;
-  padding: 8px 14px; border: 2px solid var(--indigo); background: rgba(34, 21, 105, 0.35);
-}
-.walk a:hover { border-color: var(--pink); color: #fff; }
-.walk a:focus-visible, .dir a:focus-visible, button:focus-visible { outline: 2px dashed var(--pink); outline-offset: 3px; }
-
-.badge { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.badge { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .badge img { width: 88px; height: 31px; image-rendering: pixelated; display: block; }
 .badge span { color: var(--muted); font-size: 0.9rem; min-width: 0; }
-.badge code { overflow-wrap: anywhere; }
-
-.snippet { position: relative; margin-top: 1rem; }
-pre {
-  margin: 0; padding: 16px; overflow-x: auto;
-  background: rgba(0, 0, 0, 0.75); border: 2px solid var(--indigo);
-  font: 0.82rem/1.55 var(--face-mono); color: var(--ink);
-}
-.snippet button {
-  position: absolute; top: 8px; right: 8px;
-  font-family: var(--face-pixel); font-size: 0.65rem; letter-spacing: 0.1em;
-  color: var(--void); background: var(--sky); border: 0; padding: 6px 10px; cursor: pointer;
-}
-.snippet button:hover { background: var(--pink); }
-p { margin: 0 0 1rem; }
-code { font-family: var(--face-mono); color: var(--sky); }
-
 footer {
-  margin-top: 4rem; font-family: var(--face-pixel); font-size: 0.62rem;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  margin-top: 3rem; font: 0.62rem/1.6 var(--face-pixel); letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted);
 }
 footer a { color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 
-<main>
-  <header>
-    <p class="label">a webring</p>
-    <h1>human.wad</h1>
-    <p>The sites of people who would rather search and dig. Membership travels by word of mouth; there is no sign-up form.</p>
-  </header>
+<div class="map" id="map">
+  <h1>human.wad</h1>
+  <p class="stats" id="stats">reading the map…</p>
+  <noscript><p class="stats" style="bottom:auto;top:45%">the map needs javascript. the member list is <a href="members.json">members.json</a>.</p></noscript>
+</div>
+<ol class="sr" id="room-list" aria-label="Members"></ol>
 
-  <section aria-labelledby="dir-h">
-    <h2 id="dir-h">Directory</h2>
-    <table class="dir">
-      <thead><tr><th scope="col">#</th><th scope="col">name</th><th scope="col">site</th></tr></thead>
-      <tbody id="members"><tr class="empty"><td></td><td colspan="2">reading the directory…</td></tr></tbody>
-    </table>
-    <nav class="walk" aria-label="Walk the ring">
-      <a href="random/">random site</a>
-    </nav>
+<main>
+  <section id="door" aria-labelledby="door-h">
+    <h2 id="door-h">the door</h2>
+    <p>human.wad is invite-only. The way in is the <a href="https://github.com/human-wad">human-wad</a> org on GitHub. Once you're in it, open a pull request on <a href="https://github.com/human-wad/human-wad">the ring's repo</a> that adds you to <code>members.json</code>:</p>
+<pre>{ "name": "your-name", "gh": "your-github-username", "url": "https://your-site.example" }</pre>
+    <p>A check reads every pull request. It closes the ones from outside the org, and it only lets you add or change your own room.</p>
   </section>
 
-  <section aria-labelledby="join-h">
-    <h2 id="join-h">On the ring</h2>
-    <p>If you were asked in, add the ring to your site. Replace <code>your-name</code> with your name from the directory.</p>
+  <section aria-labelledby="site-h">
+    <h2 id="site-h">on your site</h2>
+    <p>Point to your neighbours. <code>from</code> is your name in <code>members.json</code>.</p>
+<pre>&lt;a href="https://human.wheresallthedata.fyi/prev/?from=your-name"&gt;&amp;larr;&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/"&gt;&lt;img src="https://human.wheresallthedata.fyi/badge.png" width="88" height="31" alt="human.wad"&gt;&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/random/?from=your-name"&gt;random&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/next/?from=your-name"&gt;&amp;rarr;&lt;/a&gt;</pre>
     <div class="badge">
       <img src="badge.png" alt="human.wad" width="88" height="31">
-      <span>Badge by Harsha. Hotlink <code>https://human.wheresallthedata.fyi/badge.png</code> or copy it.</span>
-    </div>
-    <div class="snippet">
-      <button type="button" id="copy">copy</button>
-<pre id="code"><code>&lt;a href="https://human.wheresallthedata.fyi/prev/?from=your-name"&gt;&amp;larr; prev&lt;/a&gt;
-&lt;a href="https://human.wheresallthedata.fyi/"&gt;
-  &lt;img src="https://human.wheresallthedata.fyi/badge.png" width="88" height="31" alt="human.wad"&gt;
-&lt;/a&gt;
-&lt;a href="https://human.wheresallthedata.fyi/random/?from=your-name"&gt;random&lt;/a&gt;
-&lt;a href="https://human.wheresallthedata.fyi/next/?from=your-name"&gt;next &amp;rarr;&lt;/a&gt;</code></pre>
+      <span>Badge by Harsha. Hotlink it or keep a copy.</span>
     </div>
   </section>
 
-  <footer>human.wad // <a href="https://wheresallthedata.fyi">wheresallthedata.fyi</a></footer>
+  <footer>human.wad // <a href="https://wheresallthedata.fyi">wheresallthedata.fyi</a> // <a href="https://github.com/human-wad/human-wad">source</a></footer>
 </main>
 
 <script>
 (async () => {
-  const body = document.getElementById("members");
-  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
+  const NS = "http://www.w3.org/2000/svg";
+  const mapEl = document.getElementById("map");
+  const statsEl = document.getElementById("stats");
+  const listEl = document.getElementById("room-list");
+
+  let members = [];
   try {
     const res = await fetch("members.json", { cache: "no-store" });
-    const members = (await res.json()).filter(m => /^https?:\/\//.test(m.url));
-    body.textContent = "";
-    members.forEach((m, i) => {
-      const tr = document.createElement("tr");
-      const n = document.createElement("td"); n.textContent = String(i).padStart(2, "0");
-      const name = document.createElement("td"); name.textContent = m.name;
-      const site = document.createElement("td");
-      const a = document.createElement("a"); a.href = m.url; a.textContent = host(m.url);
-      site.append(a); tr.append(n, name, site); body.append(tr);
-    });
+    members = (await res.json()).filter(m => m && typeof m.name === "string" && /^https?:\/\//.test(m.url));
   } catch (e) {
-    body.innerHTML = '<tr class="empty"><td></td><td colspan="2">couldn\'t read members.json. reload to try again.</td></tr>';
+    statsEl.textContent = "couldn't read members.json. reload to try again.";
+    return;
+  }
+
+  // ---- seeded randomness: same name, same room, forever ----
+  const seed = str => {
+    let h = 1779033703 ^ str.length;
+    for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    let a = h >>> 0;
+    return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  };
+  const snap = v => Math.round(v / 8) * 8;
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
+
+  // A room: a rectangle whose corners are left square, cut at 45°, or stepped in,
+  // like the sectors of an id map.
+  function roomShape(name, cx, cy) {
+    const r = seed(name.toLowerCase());
+    const w = snap(160 + r() * 80), h = snap(120 + r() * 64);
+    const x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2;
+    const corner = () => { const k = r(); return { kind: k < 0.4 ? 0 : k < 0.7 ? 1 : 2, c: snap(16 + r() * 24) }; };
+    const [tl, tr, br, bl] = [corner(), corner(), corner(), corner()];
+    const pts = [];
+    const add = (...p) => { for (let i = 0; i < p.length; i += 2) pts.push([p[i], p[i + 1]]); };
+    if (tl.kind === 0) add(x0, y0); else if (tl.kind === 1) add(x0, y0 + tl.c, x0 + tl.c, y0); else add(x0, y0 + tl.c, x0 + tl.c, y0 + tl.c, x0 + tl.c, y0);
+    if (tr.kind === 0) add(x1, y0); else if (tr.kind === 1) add(x1 - tr.c, y0, x1, y0 + tr.c); else add(x1 - tr.c, y0, x1 - tr.c, y0 + tr.c, x1, y0 + tr.c);
+    if (br.kind === 0) add(x1, y1); else if (br.kind === 1) add(x1, y1 - br.c, x1 - br.c, y1); else add(x1, y1 - br.c, x1 - br.c, y1 - br.c, x1 - br.c, y1);
+    if (bl.kind === 0) add(x0, y1); else if (bl.kind === 1) add(x0 + bl.c, y1, x0, y1 - bl.c); else add(x0 + bl.c, y1, x0 + bl.c, y1 - bl.c, x0, y1 - bl.c);
+    return { pts, w, h, x0, x1, y0, y1 };
+  }
+
+  function render() {
+  // ---- the loop: rooms sit on the perimeter of a rectangle, clockwise ----
+  // the rectangle takes the screen's shape, so a phone gets a tall ring
+  const N = Math.max(members.length, 1);
+  const P = Math.max(N * 400, 1500);
+  const aspect = Math.min(1.8, Math.max(0.55, mapEl.clientWidth / mapEl.clientHeight));
+  const H = snap(P / (2 * (1 + aspect))), W = snap(P / 2 - H);
+  const PER = 2 * (W + H);
+  const corners = [0, W, W + H, 2 * W + H];
+  const at = d => {
+    d = ((d % PER) + PER) % PER;
+    if (d < W) return [-W / 2 + d, -H / 2];
+    if (d < W + H) return [W / 2, -H / 2 + (d - W)];
+    if (d < 2 * W + H) return [W / 2 - (d - W - H), H / 2];
+    return [-W / 2, H / 2 - (d - 2 * W - H)];
+  };
+  const outward = d => {
+    d = ((d % PER) + PER) % PER;
+    return d < W ? [0, -1] : d < W + H ? [1, 0] : d < 2 * W + H ? [0, 1] : [-1, 0];
+  };
+  const pathBetween = (a, b) => {               // perimeter polyline from a to b (b > a)
+    const pts = [at(a)];
+    for (let lap = 0; lap <= 1; lap++)
+      for (const c of corners) { const cd = c + lap * PER; if (cd > a && cd < b) pts.push(at(cd)); }
+    pts.push(at(b));
+    return pts;
+  };
+
+  const step = PER / N, off = W / 2;
+  const rooms = members.map((m, i) => {
+    const [cx, cy] = at(off + i * step);
+    return { m, d: off + i * step, cx, cy, ...roomShape(m.name, cx, cy) };
+  });
+  const corridors = [];
+  if (members.length) {
+    for (let i = 0; i < members.length; i++) corridors.push(pathBetween(off + i * step, off + (i + 1) * step));
+  }
+
+  // the door: halfway to the next room, off the ring, away from any corner
+  let dd = off + step / 2;
+  for (const c of corners) for (const cd of [c, c + PER]) if (Math.abs(dd - cd) < 90) dd = cd + 110;
+  const [sx, sy] = at(dd), [nx, ny] = outward(dd);
+  const doorAt = [sx + nx * 200, sy + ny * 200];
+  corridors.push([[sx, sy], doorAt]);
+  const youAt = [doorAt[0] + nx * 90, doorAt[1] + ny * 90];
+
+  // ---- draw ----
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const CW = 44;
+  let minX = -W / 2, maxX = W / 2, minY = -H / 2, maxY = H / 2;
+  for (const r of rooms) { minX = Math.min(minX, r.x0); maxX = Math.max(maxX, r.x1); minY = Math.min(minY, r.y0); maxY = Math.max(maxY, r.y1); }
+  for (const [x, y] of [doorAt, youAt]) { minX = Math.min(minX, x - 40); maxX = Math.max(maxX, x + 40); minY = Math.min(minY, y - 40); maxY = Math.max(maxY, y + 40); }
+  const pad = 140;
+  const vb = [minX - pad, minY - pad * 1.4, maxX - minX + pad * 2, maxY - minY + pad * 2.6];
+
+  const svg = el("svg", { viewBox: vb.join(" "), preserveAspectRatio: "xMidYMid meet", role: "img", "aria-label": `Map of the ring: ${members.length} room${members.length === 1 ? "" : "s"} and a door.` });
+  svg.style.minWidth = Math.round(vb[2] * 0.3) + "px";
+  const defs = el("defs", {}, svg);
+  const pat = el("pattern", { id: "grid", width: 64, height: 64, patternUnits: "userSpaceOnUse", x: 0, y: 0 }, defs);
+  el("rect", { width: 64, height: 64, fill: "var(--void)" }, pat);
+  el("path", { d: "M64 0H0V64", fill: "none", stroke: "var(--deep)", "stroke-width": 1.5 }, pat);
+  // the grid runs past the drawing so it fills the whole map, not just the viewBox
+  el("rect", { x: vb[0] - 4000, y: vb[1] - 4000, width: vb[2] + 8000, height: vb[3] + 8000, fill: "url(#grid)" }, svg);
+
+  const poly = pts => pts.map(p => p.join(",")).join(" ");
+  const outer = el("g", { class: "corridors" }, svg);
+  for (const c of corridors) el("polyline", { class: "wall-out", points: poly(c), "stroke-width": CW + 6 }, outer);
+
+  const roomLayer = el("g", { class: "rooms" }, svg);
+  const roomEls = rooms.map(r => {
+    const a = el("a", { href: r.m.url }, roomLayer);
+    el("title", {}, a).textContent = `${r.m.name}: ${host(r.m.url)}`;
+    return el("polygon", { class: "room", points: poly(r.pts) }, a);
+  });
+
+  const inner = el("g", { class: "corridors" }, svg);
+  for (const c of corridors) el("polyline", { class: "wall-in", points: poly(c), "stroke-width": CW }, inner);
+
+  // the door across the end of its corridor, and you, standing outside it
+  const half = CW / 2 + 3;
+  el("line", { class: "door", x1: doorAt[0] - ny * half, y1: doorAt[1] - nx * half, x2: doorAt[0] + ny * half, y2: doorAt[1] + nx * half }, svg);
+  const doorLink = el("a", { href: "#door" }, svg);
+  el("title", {}, doorLink).textContent = "the door: how to get in";
+  // label beside the door: to its right on a vertical corridor, above it on a horizontal one
+  const tagAt = nx === 0 ? [doorAt[0] + 76, doorAt[1]] : [doorAt[0], doorAt[1] - 46];
+  el("text", { class: "door-tag", x: tagAt[0], y: tagAt[1] }, doorLink).textContent = "door";
+  const ang = Math.atan2(-ny, -nx) * 180 / Math.PI;   // facing the door
+  el("path", { class: "you", d: "M-26 0H22M22 0L10 -10M22 0L10 10M-26 0L-36 -10M-26 0L-36 10M-16 0L-26 -10M-16 0L-26 10", transform: `translate(${youAt[0]} ${youAt[1]}) rotate(${ang})` }, svg);
+
+  // labels last, so corridors never cover them
+  const labels = el("g", {}, svg);
+  rooms.forEach((r, i) => {
+    const a = el("a", { href: r.m.url, tabindex: "-1", "aria-hidden": "true" }, labels);
+    const size = Math.min(26, (r.w - 28) / (r.m.name.length * 0.82));
+    el("text", { class: "label", x: r.cx, y: r.cy - 10, "font-size": size.toFixed(1) }, a).textContent = r.m.name;
+    el("text", { class: "host", x: r.cx, y: r.cy + 18, "font-size": Math.min(15, (r.w - 24) / (host(r.m.url).length * 0.62)).toFixed(1) }, a).textContent = host(r.m.url);
+    a.style.pointerEvents = "auto";
+    a.addEventListener("mouseenter", () => roomEls[i].classList.add("hot"));
+    a.addEventListener("mouseleave", () => roomEls[i].classList.remove("hot"));
+  });
+
+  const old = mapEl.querySelector("svg");
+  if (old) old.remove();
+  mapEl.insertBefore(svg, mapEl.firstChild);
+  // open at the middle of the map when it's wider than the screen
+  mapEl.scrollLeft = (mapEl.scrollWidth - mapEl.clientWidth) / 2;
+  mapEl.scrollTop = (mapEl.scrollHeight - mapEl.clientHeight) / 2;
+
+  statsEl.innerHTML = "";
+  statsEl.append(`rooms ${members.length}  ·  doors 1  ·  `);
+  const rnd = document.createElement("a"); rnd.href = "random/"; rnd.textContent = "random room →";
+  statsEl.append(rnd);
+  }
+  render();
+  let lastAspect = mapEl.clientWidth / mapEl.clientHeight, timer;
+  addEventListener("resize", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const a = mapEl.clientWidth / mapEl.clientHeight;
+      if (Math.abs(a - lastAspect) > 0.15) { lastAspect = a; render(); }
+    }, 200);
+  });
+
+  for (const m of members) {
+    const li = document.createElement("li");
+    const a = document.createElement("a"); a.href = m.url; a.textContent = `${m.name} (${host(m.url)})`;
+    li.append(a); listEl.append(li);
   }
 })();
-
-document.getElementById("copy").addEventListener("click", async (e) => {
-  try {
-    await navigator.clipboard.writeText(document.getElementById("code").textContent);
-    e.target.textContent = "copied";
-  } catch (err) {
-    e.target.textContent = "select + copy";
-  }
-  setTimeout(() => { e.target.textContent = "copy"; }, 1600);
-});
 </script>
 </html>
