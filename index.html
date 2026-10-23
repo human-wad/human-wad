@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>human.wad</title>
+<meta name="description" content="human.wad, the webring of wheresallthedata.fyi">
+<link rel="icon" href="badge.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Same palette as wheresallthedata.fyi (lifted from Harsha's 88x31 button). */
+:root {
+  color-scheme: dark;
+  --void:   #000000;
+  --deep:   #221569;
+  --indigo: #3b2799;
+  --violet: #a739e8;
+  --pink:   #f465ee;
+  --ice:    #b5e6ff;
+  --sky:    #84d5fe;
+  --ink:    #e9e4ff;
+  --muted:  #a49bd1;
+  --face-pixel: "Silkscreen", "Courier New", monospace;
+  --face-body:  "Atkinson Hyperlegible", system-ui, sans-serif;
+  --face-mono:  ui-monospace, "Courier New", monospace;
+}
+html, body { margin: 0; background: var(--void); color: var(--ink); }
+body {
+  font: 17px/1.6 var(--face-body);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 8vh max(16px, env(safe-area-inset-left, 0px));
+  /* a sparse dithered sky, so the page isn't flat black */
+  background-image:
+    radial-gradient(ellipse at 70% -10%, rgba(59, 39, 153, 0.55), transparent 55%),
+    radial-gradient(1px 1px at 20% 30%, var(--ice), transparent),
+    radial-gradient(1px 1px at 80% 60%, var(--sky), transparent),
+    radial-gradient(1px 1px at 45% 85%, var(--pink), transparent);
+  background-attachment: fixed;
+}
+main { max-width: 720px; margin: 0 auto; }
+
+header { padding: 14vh 0 6vh; }
+.label {
+  font-family: var(--face-pixel);
+  font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--pink); margin: 0 0 0.6rem;
+}
+h1 {
+  font-family: var(--face-pixel); font-weight: 400;
+  font-size: clamp(2.4rem, 10vw, 4.5rem); line-height: 1.05;
+  margin: 0; color: var(--ice);
+  text-shadow: 0 0.06em 0 var(--deep), 0 0 0.6em rgba(167, 57, 232, 0.55);
+}
+header p { color: var(--muted); max-width: 46ch; margin: 1rem 0 0; }
+
+h2 {
+  font-family: var(--face-pixel); font-weight: 400;
+  font-size: 1rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--sky); margin: 3.2rem 0 0.9rem;
+}
+
+/* members, laid out like a WAD's lump directory */
+.dir { width: 100%; border-collapse: collapse; font-family: var(--face-mono); font-size: 0.95rem; }
+.dir th {
+  font-family: var(--face-pixel); font-weight: 400; font-size: 0.65rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+  text-align: left; padding: 0 12px 6px 0; border-bottom: 2px dotted var(--indigo);
+}
+.dir td { padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(59, 39, 153, 0.5); vertical-align: top; }
+.dir td:first-child { color: var(--violet); width: 4ch; }
+.dir td:nth-child(2) { color: var(--ink); }
+.dir a { color: var(--sky); text-underline-offset: 3px; word-break: break-all; }
+.dir a:hover { color: var(--pink); }
+.dir .empty td { color: var(--muted); font-style: italic; }
+
+.walk { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 1.4rem; }
+.walk a {
+  font-family: var(--face-pixel); font-size: 0.8rem; letter-spacing: 0.08em;
+  color: var(--ice); text-decoration: none;
+  padding: 8px 14px; border: 2px solid var(--indigo); background: rgba(34, 21, 105, 0.35);
+}
+.walk a:hover { border-color: var(--pink); color: #fff; }
+.walk a:focus-visible, .dir a:focus-visible, button:focus-visible { outline: 2px dashed var(--pink); outline-offset: 3px; }
+
+.badge { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.badge img { width: 88px; height: 31px; image-rendering: pixelated; display: block; }
+.badge span { color: var(--muted); font-size: 0.9rem; min-width: 0; }
+.badge code { overflow-wrap: anywhere; }
+
+.snippet { position: relative; margin-top: 1rem; }
+pre {
+  margin: 0; padding: 16px; overflow-x: auto;
+  background: rgba(0, 0, 0, 0.75); border: 2px solid var(--indigo);
+  font: 0.82rem/1.55 var(--face-mono); color: var(--ink);
+}
+.snippet button {
+  position: absolute; top: 8px; right: 8px;
+  font-family: var(--face-pixel); font-size: 0.65rem; letter-spacing: 0.1em;
+  color: var(--void); background: var(--sky); border: 0; padding: 6px 10px; cursor: pointer;
+}
+.snippet button:hover { background: var(--pink); }
+p { margin: 0 0 1rem; }
+code { font-family: var(--face-mono); color: var(--sky); }
+
+footer {
+  margin-top: 4rem; font-family: var(--face-pixel); font-size: 0.62rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+}
+footer a { color: inherit; }
+</style>
+
+<main>
+  <header>
+    <p class="label">a webring</p>
+    <h1>human.wad</h1>
+    <p>The sites of people who would rather search and dig. Membership travels by word of mouth; there is no sign-up form.</p>
+  </header>
+
+  <section aria-labelledby="dir-h">
+    <h2 id="dir-h">Directory</h2>
+    <table class="dir">
+      <thead><tr><th scope="col">#</th><th scope="col">name</th><th scope="col">site</th></tr></thead>
+      <tbody id="members"><tr class="empty"><td></td><td colspan="2">reading the directory…</td></tr></tbody>
+    </table>
+    <nav class="walk" aria-label="Walk the ring">
+      <a href="random/">random site</a>
+    </nav>
+  </section>
+
+  <section aria-labelledby="join-h">
+    <h2 id="join-h">On the ring</h2>
+    <p>If you were asked in, add the ring to your site. Replace <code>your-name</code> with your name from the directory.</p>
+    <div class="badge">
+      <img src="badge.png" alt="human.wad" width="88" height="31">
+      <span>Badge by Harsha. Hotlink <code>https://human.wheresallthedata.fyi/badge.png</code> or copy it.</span>
+    </div>
+    <div class="snippet">
+      <button type="button" id="copy">copy</button>
+<pre id="code"><code>&lt;a href="https://human.wheresallthedata.fyi/prev/?from=your-name"&gt;&amp;larr; prev&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/"&gt;
+  &lt;img src="https://human.wheresallthedata.fyi/badge.png" width="88" height="31" alt="human.wad"&gt;
+&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/random/?from=your-name"&gt;random&lt;/a&gt;
+&lt;a href="https://human.wheresallthedata.fyi/next/?from=your-name"&gt;next &amp;rarr;&lt;/a&gt;</code></pre>
+    </div>
+  </section>
+
+  <footer>human.wad // <a href="https://wheresallthedata.fyi">wheresallthedata.fyi</a></footer>
+</main>
+
+<script>
+(async () => {
+  const body = document.getElementById("members");
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
+  try {
+    const res = await fetch("members.json", { cache: "no-store" });
+    const members = (await res.json()).filter(m => /^https?:\/\//.test(m.url));
+    body.textContent = "";
+    members.forEach((m, i) => {
+      const tr = document.createElement("tr");
+      const n = document.createElement("td"); n.textContent = String(i).padStart(2, "0");
+      const name = document.createElement("td"); name.textContent = m.name;
+      const site = document.createElement("td");
+      const a = document.createElement("a"); a.href = m.url; a.textContent = host(m.url);
+      site.append(a); tr.append(n, name, site); body.append(tr);
+    });
+  } catch (e) {
+    body.innerHTML = '<tr class="empty"><td></td><td colspan="2">couldn\'t read members.json. reload to try again.</td></tr>';
+  }
+})();
+
+document.getElementById("copy").addEventListener("click", async (e) => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById("code").textContent);
+    e.target.textContent = "copied";
+  } catch (err) {
+    e.target.textContent = "select + copy";
+  }
+  setTimeout(() => { e.target.textContent = "copy"; }, 1600);
+});
+</script>
+</html>
