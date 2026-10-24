@@ -2,12 +2,14 @@
 
 The webring of [wheresallthedata.fyi](https://wheresallthedata.fyi), drawn as a Doom automap at
 [human.wheresallthedata.fyi](https://human.wheresallthedata.fyi). Every member is a room; its
-shape comes from your name. Fully static (GitHub Pages).
+shape comes from your name; the passages between rooms are carved fresh on every visit. Fully static (GitHub Pages).
 
 ## Getting in
 
-human.wad is invite-only: you need to be in the [human-wad](https://github.com/human-wad) org.
-Once you are, make your membership public on the org's
+human.wad is invite-only. To knock, email [Axiss](mailto:axiss@axisspri.me) or
+[datavorous](mailto:datavorous.work@gmail.com) with a little about yourself and what you've been
+digging into. If we find you, you'll be invited to the [human-wad](https://github.com/human-wad) org.
+Once you're in, make your membership public on the org's
 [People page](https://github.com/orgs/human-wad/people) (the check can't see private members),
 then open a pull request that adds one entry to [`members.json`](members.json):
 
@@ -33,4 +35,4 @@ order on the ring.
 ```
 
 `from` takes your name or your site's hostname. Unknown names land on the map.
-Badge art by Harsha.
+Badge art by [Harsha](https://harsha.is-a.dev).

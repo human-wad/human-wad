@@ -10,9 +10,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Monsieur+La+Doulaise&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
 <!--
   The ring, drawn as a Doom automap. Every member is a room; its shape is
-  seeded from their name, so it is theirs and never changes. Corridors run
-  the loop in members.json order. One corridor leads off the ring to a door:
-  that is the way in.
+  seeded from their name, so it is theirs and never changes. The passages
+  are carved fresh on every visit: winding corridors run the loop in
+  members.json order, with shortcuts, dead ends and closets off them. One
+  passage leads off the map to a door: that is the way in.
 -->
 <style>
 /* palette lifted from Harsha's 88x31 button, same as wheresallthedata.fyi */
@@ -60,8 +61,8 @@ body { font: 17px/1.6 var(--face-body); }
 .stats a:hover { color: var(--pink); }
 
 /* svg pieces */
-.wall-out  { fill: none; stroke: var(--indigo); stroke-linejoin: miter; }
-.wall-in   { fill: none; stroke: url(#grid); stroke-linejoin: miter; }
+.wall-out  { fill: none; stroke: var(--indigo); stroke-linejoin: miter; stroke-linecap: square; }
+.wall-in   { fill: none; stroke: url(#grid); stroke-linejoin: miter; stroke-linecap: square; }
 .room      { fill: url(#grid); stroke: var(--violet); stroke-width: 3; transition: stroke 120ms; }
 .rooms a:hover .room, .rooms a:focus .room, .room.hot { stroke: var(--pink); }
 .rooms a:focus { outline: none; }
@@ -71,6 +72,7 @@ body { font: 17px/1.6 var(--face-body); }
 .door      { stroke: var(--pink); stroke-width: 8; }
 .door-tag  { fill: var(--pink); font-family: var(--face-pixel); font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
 .you       { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: square; }
+.closet    { fill: url(#grid); stroke: var(--indigo); stroke-width: 3; stroke-linejoin: miter; }
 .corridors { pointer-events: none; }
 
 /* ---- the text underneath ---- */
@@ -114,7 +116,8 @@ footer a { color: inherit; }
 <main>
   <section id="door" aria-labelledby="door-h">
     <h2 id="door-h">the door</h2>
-    <p>human.wad is invite-only. The way in is the <a href="https://github.com/human-wad">human-wad</a> org on GitHub. Once you're in it, make your membership public on <a href="https://github.com/orgs/human-wad/people">its People page</a>, then open a pull request on <a href="https://github.com/human-wad/human-wad">the ring's repo</a> that adds you to <code>members.json</code>:</p>
+    <p>human.wad is invite-only. There's no sign-up form; membership travels by word of mouth. To knock, email <a href="mailto:axiss@axisspri.me">Axiss</a> or <a href="mailto:datavorous.work@gmail.com">datavorous</a> with a little about yourself and what you've been digging into.</p>
+    <p>If we find you, you'll be invited to the <a href="https://github.com/human-wad">human-wad</a> org on GitHub. Make your membership public on <a href="https://github.com/orgs/human-wad/people">its People page</a>, then open a pull request on <a href="https://github.com/human-wad/human-wad">the ring's repo</a> that adds your room to <code>members.json</code>:</p>
 <pre>{ "name": "your-name", "gh": "your-github-username", "url": "https://your-site.example" }</pre>
     <p>A check reads every pull request. It closes the ones from outside the org, and it only lets you add or change your own room.</p>
   </section>
@@ -128,7 +131,7 @@ footer a { color: inherit; }
 &lt;a href="https://human.wheresallthedata.fyi/next/?from=your-name"&gt;&amp;rarr;&lt;/a&gt;</pre>
     <div class="badge">
       <img src="badge.png" alt="human.wad" width="88" height="31">
-      <span>Badge by Harsha. Hotlink it or keep a copy.</span>
+      <span>Badge by <a href="https://harsha.is-a.dev">Harsha</a>. Hotlink it or keep a copy.</span>
     </div>
   </section>
 
@@ -175,18 +178,60 @@ footer a { color: inherit; }
     if (tr.kind === 0) add(x1, y0); else if (tr.kind === 1) add(x1 - tr.c, y0, x1, y0 + tr.c); else add(x1 - tr.c, y0, x1 - tr.c, y0 + tr.c, x1, y0 + tr.c);
     if (br.kind === 0) add(x1, y1); else if (br.kind === 1) add(x1, y1 - br.c, x1 - br.c, y1); else add(x1, y1 - br.c, x1 - br.c, y1 - br.c, x1 - br.c, y1);
     if (bl.kind === 0) add(x0, y1); else if (bl.kind === 1) add(x0 + bl.c, y1, x0, y1 - bl.c); else add(x0 + bl.c, y1, x0 + bl.c, y1 - bl.c, x0, y1 - bl.c);
-    return { pts, w, h, x0, x1, y0, y1 };
+    return { pts, w, h, x0, x1, y0, y1, cx, cy };
   }
 
+  // ---- the passages: carved square by square on the floor grid ----
+  // Rooms are seeded from names and never change. Passages are rolled fresh
+  // on every visit: winding ring corridors, a few loops, side branches that
+  // dead-end or open into closets, and one way out to the door.
+  const G = 64;                                        // one floor square
+  const SIDES = [[0, -1], [1, 0], [0, 1], [-1, 0]];    // up, right, down, left
+  const visit = (Math.random() * 4294967296) >>> 0;
+
+  const heap = () => {
+    const a = [];
+    return {
+      get size() { return a.length; },
+      push(p, v) {
+        a.push([p, v]);
+        for (let i = a.length - 1; i;) { const q = (i - 1) >> 1; if (a[q][0] <= a[i][0]) break; [a[q], a[i]] = [a[i], a[q]]; i = q; }
+      },
+      pop() {
+        const top = a[0], last = a.pop();
+        if (a.length) {
+          a[0] = last;
+          for (let i = 0; ;) {
+            const l = 2 * i + 1, r = l + 1; let m = i;
+            if (l < a.length && a[l][0] < a[m][0]) m = l;
+            if (r < a.length && a[r][0] < a[m][0]) m = r;
+            if (m === i) break;
+            [a[m], a[i]] = [a[i], a[m]]; i = m;
+          }
+        }
+        return top;
+      },
+    };
+  };
+
+  // a rectangle with each corner left square or cut at 45°
+  const chamfered = (x0, y0, x1, y1, c) => [
+    ...(c[0] ? [[x0, y0 + c[0]], [x0 + c[0], y0]] : [[x0, y0]]),
+    ...(c[1] ? [[x1 - c[1], y0], [x1, y0 + c[1]]] : [[x1, y0]]),
+    ...(c[2] ? [[x1, y1 - c[2]], [x1 - c[2], y1]] : [[x1, y1]]),
+    ...(c[3] ? [[x0 + c[3], y1], [x0, y1 - c[3]]] : [[x0, y1]]),
+  ];
+
   function render() {
-  // ---- the loop: rooms sit on the perimeter of a rectangle, clockwise ----
+  const rnd = seed(`${visit}:${members.map(m => m.name).join(",")}`);
+
+  // ---- the loop: rooms sit near the perimeter of a rectangle, clockwise ----
   // the rectangle takes the screen's shape, so a phone gets a tall ring
   const N = Math.max(members.length, 1);
-  const P = Math.max(N * 400, 1500);
+  const P = Math.max(N * 448, 1500);
   const aspect = Math.min(1.8, Math.max(0.55, mapEl.clientWidth / mapEl.clientHeight));
   const H = snap(P / (2 * (1 + aspect))), W = snap(P / 2 - H);
   const PER = 2 * (W + H);
-  const corners = [0, W, W + H, 2 * W + H];
   const at = d => {
     d = ((d % PER) + PER) % PER;
     if (d < W) return [-W / 2 + d, -H / 2];
@@ -198,31 +243,277 @@ footer a { color: inherit; }
     d = ((d % PER) + PER) % PER;
     return d < W ? [0, -1] : d < W + H ? [1, 0] : d < 2 * W + H ? [0, 1] : [-1, 0];
   };
-  const pathBetween = (a, b) => {               // perimeter polyline from a to b (b > a)
-    const pts = [at(a)];
-    for (let lap = 0; lap <= 1; lap++)
-      for (const c of corners) { const cd = c + lap * PER; if (cd > a && cd < b) pts.push(at(cd)); }
-    pts.push(at(b));
-    return pts;
-  };
 
+  // room centres sit on grid squares; each is nudged in or out a little, unless that crowds a neighbour
+  const gsnap = v => Math.round(v / G) * G;
   const step = PER / N, off = W / 2;
-  const rooms = members.map((m, i) => {
-    const [cx, cy] = at(off + i * step);
-    return { m, d: off + i * step, cx, cy, ...roomShape(m.name, cx, cy) };
+  const rooms = [];
+  members.forEach((m, i) => {
+    const [bx, by] = at(off + i * step), [ox, oy] = outward(off + i * step);
+    const nudge = Math.round((rnd() * 2 - 1) * 2);
+    for (const j of [nudge, 0]) {
+      const r = { m, ...roomShape(m.name, gsnap(bx + ox * j * G), gsnap(by + oy * j * G)) };
+      const crowded = rooms.some(o => o.x0 - 2 * G < r.x1 && r.x0 < o.x1 + 2 * G && o.y0 - 2 * G < r.y1 && r.y0 < o.y1 + 2 * G);
+      if (!crowded || j === 0) { rooms.push(r); break; }
+    }
   });
-  const corridors = [];
-  if (members.length) {
-    for (let i = 0; i < members.length; i++) corridors.push(pathBetween(off + i * step, off + (i + 1) * step));
+
+  // ---- the grid ----
+  const MARG = 12;
+  const gi0 = Math.floor(-W / 2 / G) - MARG, gj0 = Math.floor(-H / 2 / G) - MARG;
+  const GW = Math.ceil(W / 2 / G) + MARG - gi0 + 1, GH = Math.ceil(H / 2 / G) + MARG - gj0 + 1;
+  const idx = (i, j) => (i < gi0 || j < gj0 || i >= gi0 + GW || j >= gj0 + GH) ? -1 : (j - gj0) * GW + (i - gi0);
+  const ci = k => gi0 + k % GW, cj = k => gj0 + Math.floor(k / GW);
+  const nb = (k, s) => idx(ci(k) + SIDES[s][0], cj(k) + SIDES[s][1]);
+  const blocked = new Uint8Array(GW * GH), carved = new Uint8Array(GW * GH);
+  const carvedList = [];
+  const carve = cells => { for (const k of cells) if (!carved[k]) { carved[k] = 1; carvedList.push(k); } };
+  const free = k => k >= 0 && !blocked[k] && !carved[k];
+  const block = k => { if (k >= 0 && !carved[k]) blocked[k] = 1; };
+
+  // squares under a room, plus a margin, are solid; passages reach a room only at the middle of a side
+  const M = G * 0.75;
+  for (const r of rooms)
+    for (let j = Math.ceil((r.y0 - M) / G); j * G <= r.y1 + M; j++)
+      for (let i = Math.ceil((r.x0 - M) / G); i * G <= r.x1 + M; i++) block(idx(i, j));
+  for (const r of rooms) {
+    const i = r.cx / G, j = r.cy / G;
+    r.doors = [
+      { s: 0, k: idx(i, Math.ceil((r.y0 - M) / G) - 1), at: [r.cx, r.y0 + 4] },
+      { s: 1, k: idx(Math.floor((r.x1 + M) / G) + 1, j), at: [r.x1 - 4, r.cy] },
+      { s: 2, k: idx(i, Math.floor((r.y1 + M) / G) + 1), at: [r.cx, r.y1 - 4] },
+      { s: 3, k: idx(Math.ceil((r.x0 - M) / G) - 1, j), at: [r.x0 + 4, r.cy] },
+    ].filter(d => d.k >= 0 && !blocked[d.k]).map(d => ({ ...d, used: 0 }));
   }
 
-  // the door: halfway to the next room, off the ring, away from any corner
-  let dd = off + step / 2;
-  for (const c of corners) for (const cd of [c, c + PER]) if (Math.abs(dd - cd) < 90) dd = cd + 110;
-  const [sx, sy] = at(dd), [nx, ny] = outward(dd);
-  const doorAt = [sx + nx * 200, sy + ny * 200];
-  corridors.push([[sx, sy], doorAt]);
+  // smooth noise over the floor, so passages bend in long runs instead of jittering
+  let noise = new Float32Array(GW * GH).map(() => rnd());
+  for (let pass = 0; pass < 2; pass++) {
+    const out = new Float32Array(noise.length);
+    for (let k = 0; k < noise.length; k++) {
+      let s = noise[k], c = 1;
+      for (let d = 0; d < 4; d++) { const n = nb(k, d); if (n >= 0) { s += noise[n]; c++; } }
+      out[k] = s / c;
+    }
+    noise = out;
+  }
+  { let lo = Infinity, hi = -Infinity; for (const v of noise) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    noise = noise.map(v => (v - lo) / (hi - lo || 1)); }
+
+  const touches = (k, except) => {
+    for (let d = 0; d < 4; d++) { const n = nb(k, d); if (n >= 0 && n !== except && carved[n]) return true; }
+    return false;
+  };
+
+  // cheapest walk from one square to any goal square (Dijkstra with a binary heap)
+  function route(from, goals, opt = {}) {
+    const goal = new Set(goals);
+    const dist = new Float32Array(GW * GH).fill(Infinity);
+    const prev = new Int32Array(GW * GH).fill(-1), dir = new Int8Array(GW * GH).fill(-1);
+    const q = heap();
+    dist[from] = 0; q.push(0, from);
+    while (q.size) {
+      const [c, k] = q.pop();
+      if (c > dist[k]) continue;
+      if (goal.has(k)) {
+        const path = [k];
+        while (path[path.length - 1] !== from) path.push(prev[path[path.length - 1]]);
+        return path.reverse();
+      }
+      for (let s = 0; s < 4; s++) {
+        const n = nb(k, s);
+        if (n < 0 || (blocked[n] && !goal.has(n))) continue;
+        let w = 1 + noise[n] * 3 + (dir[k] >= 0 && dir[k] !== s ? 0.8 : 0);
+        if (carved[n]) w += opt.carved || 0;
+        else if (opt.hug && touches(n, k)) w += opt.hug;
+        if (opt.avoid && opt.avoid.has(n)) w += 8;
+        if (c + w < dist[n]) { dist[n] = c + w; prev[n] = k; dir[n] = s; q.push(c + w, n); }
+      }
+    }
+    return null;
+  }
+  // if the grid has no way through, an L-shaped run keeps the ring whole
+  const straight = (a, b) => {
+    const out = [a]; let i = ci(a), j = cj(a);
+    while (i !== ci(b)) { i += Math.sign(ci(b) - i); out.push(idx(i, j)); }
+    while (j !== cj(b)) { j += Math.sign(cj(b) - j); out.push(idx(i, j)); }
+    return out;
+  };
+  // drop any loop where a walk crosses its own track
+  const unloop = path => {
+    const out = [], seen = new Map();
+    for (const k of path) {
+      if (seen.has(k)) { for (const x of out.splice(seen.get(k) + 1)) seen.delete(x); }
+      else { seen.set(k, out.length); out.push(k); }
+    }
+    return out;
+  };
+  const nearFree = (x, y) => {
+    const i0 = Math.min(gi0 + GW - 5, Math.max(gi0 + 4, Math.round(x / G)));
+    const j0 = Math.min(gj0 + GH - 5, Math.max(gj0 + 4, Math.round(y / G)));
+    for (let r = 0; r <= 3; r++)
+      for (let dj = -r; dj <= r; dj++)
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const k = idx(i0 + di, j0 + dj);
+          if (free(k)) return k;
+        }
+    return -1;
+  };
+  const toPts = cells => cells.map(k => [ci(k) * G, cj(k) * G]);
+  const corridors = [];
+
+  // ---- ring corridors: room to next room, through a waypoint or two ----
+  const pickDoor = (r, tx, ty, not) => {
+    const opts = r.doors.filter(d => d.s !== not);
+    if (!opts.length) return null;
+    opts.sort((a, b) => a.used - b.used || (SIDES[b.s][0] * (tx - r.cx) + SIDES[b.s][1] * (ty - r.cy)) - (SIDES[a.s][0] * (tx - r.cx) + SIDES[a.s][1] * (ty - r.cy)));
+    opts[0].used++;
+    return opts[0];
+  };
+  function leg(da, db, wps) {
+    const stops = [da.k, ...wps.filter(k => k >= 0), db.k];
+    const mine = new Set();
+    let path = [];
+    for (let s = 0; s + 1 < stops.length; s++) {
+      const seg = route(stops[s], [stops[s + 1]], { carved: 6, hug: 1.5, avoid: mine }) || straight(stops[s], stops[s + 1]);
+      for (const k of seg) mine.add(k);
+      path = path.length ? path.concat(seg.slice(1)) : seg;
+    }
+    path = unloop(path);
+    carve(path);
+    corridors.push([da.at, ...toPts(path), db.at]);
+  }
+  if (rooms.length === 1) {
+    // a ring of one: leave by one side, wander round, come back in by another
+    const r = rooms[0];
+    const sh = r.doors.slice().sort(() => rnd() - 0.5);
+    const da = sh[0], db = sh[1] || sh[0];
+    if (da) {
+      const ang = d => Math.atan2(SIDES[d.s][1], SIDES[d.s][0]);
+      let span = ang(db) - ang(da);
+      if (rnd() < 0.5) span = span > 0 ? span - 2 * Math.PI : span + 2 * Math.PI;
+      if (Math.abs(span) < Math.PI) span += span > 0 ? -2 * Math.PI : 2 * Math.PI;   // always the long way round
+      const wps = [1, 2, 3].map(t => {
+        const a = ang(da) + span * t / 4, rad = G * (4 + rnd() * 4);
+        return nearFree(r.cx + Math.cos(a) * rad, r.cy + Math.sin(a) * rad);
+      });
+      leg(da, db, wps);
+    }
+  } else {
+    rooms.forEach((a, i) => {
+      const b = rooms[(i + 1) % rooms.length];
+      const da = pickDoor(a, b.cx, b.cy), db = pickDoor(b, a.cx, a.cy);
+      if (!da || !db) return;
+      const len = Math.hypot(b.cx - a.cx, b.cy - a.cy) || 1;
+      const px = -(b.cy - a.cy) / len, py = (b.cx - a.cx) / len;
+      const sign = rooms.length === 2 || rnd() < 0.5 ? 1 : -1;
+      const n = rnd() < 0.6 ? 2 : 1;
+      const wps = [];
+      for (let w = 0; w < n; w++) {
+        const t = (w + 1) / (n + 1) + (rnd() - 0.5) * 0.2;
+        const sg = w === 0 || rnd() < 0.5 ? sign : -sign;
+        const mag = sg * (G * (2 + rnd() * 4) + len * 0.15);
+        wps.push(nearFree(a.cx + (b.cx - a.cx) * t + px * mag, a.cy + (b.cy - a.cy) * t + py * mag));
+      }
+      leg(da, db, wps);
+    });
+  }
+
+  // ---- loops: shortcuts between distant parts of the ring ----
+  const nLoops = 1 + Math.floor(N / 5);
+  const reach = Math.max(10, Math.min(N, 24));
+  for (let made = 0, tries = 0; made < nLoops && tries < 120 && carvedList.length > 12; tries++) {
+    const a = carvedList[Math.floor(rnd() * carvedList.length)], b = carvedList[Math.floor(rnd() * carvedList.length)];
+    if (Math.abs(ci(a) - ci(b)) + Math.abs(cj(a) - cj(b)) < reach) continue;
+    let p = route(a, [b], { carved: 5, hug: 1 });
+    if (!p) continue;
+    // keep only the new stretch: from the last old square before it to the first old square after it
+    let s = 0, e = p.length - 1;
+    while (s + 1 < p.length && carved[p[s + 1]]) s++;
+    while (e - 1 > s && carved[p[e - 1]]) e--;
+    p = p.slice(s, e + 1);
+    const fresh = p.filter(k => !carved[k]).length;
+    if (p.length < 6 || fresh < p.length * 0.75 || p.slice(1, -1).some(k => carved[k])) continue;
+    carve(p);
+    corridors.push(toPts(p));
+    made++;
+  }
+
+  // ---- the door: one passage off the edge of everything ----
+  let ei0 = Infinity, ei1 = -Infinity, ej0 = Infinity, ej1 = -Infinity;
+  for (let k = 0; k < GW * GH; k++) if (carved[k] || blocked[k]) {
+    ei0 = Math.min(ei0, ci(k)); ei1 = Math.max(ei1, ci(k)); ej0 = Math.min(ej0, cj(k)); ej1 = Math.max(ej1, cj(k));
+  }
+  let doorAt = null, nx = 0, ny = 1;
+  for (let t = 0; t < 40 && !doorAt && carvedList.length; t++) {
+    const s = Math.floor(rnd() * 4), [dx, dy] = SIDES[s];
+    const along = s % 2 === 0 ? ei0 + 2 + Math.floor(rnd() * Math.max(1, ei1 - ei0 - 3)) : ej0 + 2 + Math.floor(rnd() * Math.max(1, ej1 - ej0 - 3));
+    const i = s === 1 ? ei1 + 3 : s === 3 ? ei0 - 3 : along;
+    const j = s === 0 ? ej0 - 3 : s === 2 ? ej1 + 3 : along;
+    const k = idx(i, j), k1 = idx(i - dx, j - dy);
+    if (!free(k) || !free(k1)) continue;
+    const p = route(k1, carvedList, { hug: 1 });
+    if (!p) continue;
+    carve([k, ...p]);
+    corridors.push(toPts([k, ...p]));
+    doorAt = [i * G, j * G]; nx = dx; ny = dy;
+    // keep the doorstep clear for the arrow and the label
+    for (let a = -2; a <= 3; a++) for (let b = -3; b <= 3; b++) block(idx(i + dx * a + dy * b, j + dy * a + dx * b));
+  }
+  if (!doorAt) {
+    // nothing carved or no way out: fall back to a stub under the ring
+    doorAt = [0, H / 2 + 200]; nx = 0; ny = 1;
+    corridors.push([[0, H / 2], doorAt]);
+  }
   const youAt = [doorAt[0] + nx * 90, doorAt[1] + ny * 90];
+
+  // ---- side branches: dead ends, some opening into a closet ----
+  const closets = [];
+  const nBranch = Math.min(4 + N * 2, 70);
+  for (let made = 0, tries = 0; made < nBranch && tries < nBranch * 10 && carvedList.length; tries++) {
+    const k0 = carvedList[Math.floor(rnd() * carvedList.length)];
+    let s = Math.floor(rnd() * 4), cur = k0;
+    const walk = [k0], inWalk = new Set(walk);
+    const len = 2 + Math.floor(rnd() * 7);
+    for (let st = 0; st < len; st++) {
+      if (st && rnd() < 0.3) s = (s + (rnd() < 0.5 ? 1 : 3)) % 4;
+      const n = nb(cur, s);
+      if (!free(n) || inWalk.has(n) || touches(n, cur)) break;
+      let crowd = false;
+      for (let d = 0; d < 4; d++) { const m = nb(n, d); if (m !== cur && inWalk.has(m)) crowd = true; }
+      if (crowd) break;
+      walk.push(n); inWalk.add(n); cur = n;
+    }
+    if (walk.length < 3) continue;
+    const pts = toPts(walk);
+    if (rnd() < 0.45) {
+      // a closet straight ahead: 3 squares across, 2 or 3 deep, with clear ground all round
+      const [dx, dy] = SIDES[s], [qx, qy] = [-dy, dx];
+      const deep = rnd() < 0.4 ? 3 : 2;
+      const sq = (a, c) => idx(ci(cur) + dx * a + qx * c, cj(cur) + dy * a + qy * c);
+      let ok = true;
+      for (let a = 0; a <= deep + 1 && ok; a++) for (let c = -2; c <= 2 && ok; c++) {
+        if (a === 0 && c === 0) continue;
+        const k = sq(a, c);
+        if (!free(k) || inWalk.has(k)) ok = false;
+      }
+      if (ok) {
+        const xs = [], ys = [];
+        for (let a = 1; a <= deep; a++) for (let c = -1; c <= 1; c++) { const k = sq(a, c); xs.push(ci(k) * G); ys.push(cj(k) * G); }
+        const inset = G / 2 - 6;
+        const x0 = Math.min(...xs) - inset, x1 = Math.max(...xs) + inset, y0 = Math.min(...ys) - inset, y1 = Math.max(...ys) + inset;
+        const cut = () => (rnd() < 0.5 ? 0 : 8 + Math.floor(rnd() * 3) * 6);
+        closets.push({ pts: chamfered(x0, y0, x1, y1, [cut(), cut(), cut(), cut()]), x0, y0, x1, y1 });
+        for (let a = 0; a <= deep + 1; a++) for (let c = -2; c <= 2; c++) block(sq(a, c));
+        const [ex, ey] = pts[pts.length - 1];
+        pts.push([ex + dx * (G / 2 + 10), ey + dy * (G / 2 + 10)]);
+      }
+    }
+    carve(walk);
+    corridors.push(pts);
+    made++;
+  }
 
   // ---- draw ----
   const el = (tag, attrs, parent) => {
@@ -232,24 +523,36 @@ footer a { color: inherit; }
     return e;
   };
   const CW = 44;
-  let minX = -W / 2, maxX = W / 2, minY = -H / 2, maxY = H / 2;
-  for (const r of rooms) { minX = Math.min(minX, r.x0); maxX = Math.max(maxX, r.x1); minY = Math.min(minY, r.y0); maxY = Math.max(maxY, r.y1); }
-  for (const [x, y] of [doorAt, youAt]) { minX = Math.min(minX, x - 40); maxX = Math.max(maxX, x + 40); minY = Math.min(minY, y - 40); maxY = Math.max(maxY, y + 40); }
+  const straighten = pts => pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return true;
+    const a = pts[i - 1], b = pts[i + 1];
+    return !((a[0] === p[0] && p[0] === b[0]) || (a[1] === p[1] && p[1] === b[1]));
+  });
+  const runs = corridors.map(straighten);
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const grow = (x, y, r) => { minX = Math.min(minX, x - r); maxX = Math.max(maxX, x + r); minY = Math.min(minY, y - r); maxY = Math.max(maxY, y + r); };
+  for (const c of runs) for (const [x, y] of c) grow(x, y, CW);
+  for (const r of [...rooms, ...closets]) { grow(r.x0, r.y0, 0); grow(r.x1, r.y1, 0); }
+  for (const [x, y] of [doorAt, youAt]) grow(x, y, 50);
   const pad = 140;
   const vb = [minX - pad, minY - pad * 1.4, maxX - minX + pad * 2, maxY - minY + pad * 2.6];
 
   const svg = el("svg", { viewBox: vb.join(" "), preserveAspectRatio: "xMidYMid meet", role: "img", "aria-label": `Map of the ring: ${members.length} room${members.length === 1 ? "" : "s"} and a door.` });
   svg.style.minWidth = Math.round(vb[2] * 0.3) + "px";
   const defs = el("defs", {}, svg);
-  const pat = el("pattern", { id: "grid", width: 64, height: 64, patternUnits: "userSpaceOnUse", x: 0, y: 0 }, defs);
-  el("rect", { width: 64, height: 64, fill: "var(--void)" }, pat);
-  el("path", { d: "M64 0H0V64", fill: "none", stroke: "var(--deep)", "stroke-width": 1.5 }, pat);
+  const pat = el("pattern", { id: "grid", width: G, height: G, patternUnits: "userSpaceOnUse", x: G / 2, y: G / 2 }, defs);
+  el("rect", { width: G, height: G, fill: "var(--void)" }, pat);
+  el("path", { d: `M${G} 0H0V${G}`, fill: "none", stroke: "var(--deep)", "stroke-width": 1.5 }, pat);
   // the grid runs past the drawing so it fills the whole map, not just the viewBox
   el("rect", { x: vb[0] - 4000, y: vb[1] - 4000, width: vb[2] + 8000, height: vb[3] + 8000, fill: "url(#grid)" }, svg);
 
   const poly = pts => pts.map(p => p.join(",")).join(" ");
   const outer = el("g", { class: "corridors" }, svg);
-  for (const c of corridors) el("polyline", { class: "wall-out", points: poly(c), "stroke-width": CW + 6 }, outer);
+  for (const c of runs) el("polyline", { class: "wall-out", points: poly(c), "stroke-width": CW + 6 }, outer);
+
+  const closetLayer = el("g", { class: "corridors" }, svg);
+  for (const c of closets) el("polygon", { class: "closet", points: poly(c.pts) }, closetLayer);
 
   const roomLayer = el("g", { class: "rooms" }, svg);
   const roomEls = rooms.map(r => {
@@ -259,7 +562,7 @@ footer a { color: inherit; }
   });
 
   const inner = el("g", { class: "corridors" }, svg);
-  for (const c of corridors) el("polyline", { class: "wall-in", points: poly(c), "stroke-width": CW }, inner);
+  for (const c of runs) el("polyline", { class: "wall-in", points: poly(c), "stroke-width": CW }, inner);
 
   // the door across the end of its corridor, and you, standing outside it
   const half = CW / 2 + 3;
@@ -293,8 +596,8 @@ footer a { color: inherit; }
 
   statsEl.innerHTML = "";
   statsEl.append(`rooms ${members.length}  ·  doors 1  ·  `);
-  const rnd = document.createElement("a"); rnd.href = "random/"; rnd.textContent = "random room →";
-  statsEl.append(rnd);
+  const rndLink = document.createElement("a"); rndLink.href = "random/"; rndLink.textContent = "random room →";
+  statsEl.append(rndLink);
   }
   render();
   let lastAspect = mapEl.clientWidth / mapEl.clientHeight, timer;
