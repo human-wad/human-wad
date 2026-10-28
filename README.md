@@ -6,9 +6,9 @@ shape comes from your name; the passages between rooms are carved fresh on every
 
 ## Getting in
 
-human.wad is invite-only. To knock, email [Axiss](mailto:axiss@axisspri.me) or
-[datavorous](mailto:datavorous.work@gmail.com) with a little about yourself and what you've been
-digging into. If we find you, you'll be invited to the [human-wad](https://github.com/human-wad) org.
+The ring is for contributors only. Anyone can hang out in the [Discord](https://discord.gg/xEtTbcHwW7), but a room on the
+map comes from contributing. If you want to contribute, email [Axiss](mailto:axiss@axisspri.me).
+Contributors get invited to the [human-wad](https://github.com/human-wad) org.
 Once you're in, make your membership public on the org's
 [People page](https://github.com/orgs/human-wad/people) (the check can't see private members),
 then open a pull request that adds one entry to [`members.json`](members.json):
